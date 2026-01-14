@@ -12,6 +12,8 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"smart_house/gosrc/structs"
+
+    // "strconv"
 )
 
 // KeyStore는 비밀키를 관리합니다.
@@ -61,7 +63,7 @@ var mySigningKey = []byte(os.Getenv("JWT_SIGNKEY"))
 
 func JwtMiddleware(next http.Handler) http.Handler {
 
-	// log.Print("jwtMiddleware")
+	log.Print("jwtMiddleware")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
@@ -117,13 +119,42 @@ func JwtMiddleware(next http.Handler) http.Handler {
         // 사용자 ID 추출
 		userID, ok := claims["user"].(string)
 		if !ok {
-			log.Print("jwtMiddleware err 6")
+			log.Print("jwtMiddleware err 7")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), structs.ContextStruct{}, userID)
+        log.Printf("Authenticated user ID: %s", userID)
+
+        //토큰 타입 확인
+        role, ok := claims["role"].(string)
+        if !ok {
+            log.Print("jwtMiddleware err 8")
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+
+
+
+		ctx := context.WithValue(r.Context(), structs.ContextStruct{}, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
+        // next.ServeHTTP(w, r)
+	})
+}
+
+func AdminJwtMiddleware(next http.Handler) http.Handler {
+
+	log.Print("AdminjwtMiddleware")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role , ok := r.Context().Value(structs.ContextStruct{}).(string)
+        if !ok || role != "admin" {
+            log.Print("adminjwtMiddleware err 2")
+            w.WriteHeader(http.StatusUnauthorized)
+            return
+        }
+
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -161,9 +192,15 @@ func GenerateTokenPair(userEmail, login_type string) (*structs.TokenPair, error)
     // Access Token (15분)
     accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
         "user": userEmail,
-        "exp":  time.Now().Add(30 * time.Minute).Unix(),
+        "exp":  time.Now().Add(15 * time.Minute).Unix(),
         "iat":  time.Now().Unix(),
         "type": "access",
+        "role": func() string {
+            if login_type == "admin" {
+                return "admin"
+            }
+            return login_type
+        }(),
     })
 
     accessTokenString, err := accessToken.SignedString(mySigningKey)
@@ -177,6 +214,12 @@ func GenerateTokenPair(userEmail, login_type string) (*structs.TokenPair, error)
         "exp":  time.Now().Add(30 * 24 * time.Hour).Unix(),
         "iat":  time.Now().Unix(),
         "type": "refresh",
+        "role": func() string {
+            if login_type == "admin" {
+                return "admin"
+            }
+            return login_type
+        }(),
     })
 
     refreshTokenString, err := refreshToken.SignedString(mySigningKey)
@@ -192,17 +235,23 @@ func GenerateTokenPair(userEmail, login_type string) (*structs.TokenPair, error)
         }, nil
     }
 
-    saveRefreshTokenHandler(userEmail, refreshTokenString, login_type)
+    if login_type == "admin" {
+        saveAdminRefreshTokenHandler(userEmail, refreshTokenString, login_type)
+    }else {
+        saveRefreshTokenHandler(userEmail, refreshTokenString, login_type)
+    }
 
     return &structs.TokenPair{
         Access_Token:  accessTokenString,
         Refresh_Token: refreshTokenString,
-        ExpiresIn:    1800, // 30분 (초 단위)
+        ExpiresIn:    900, // 15분 (초 단위)
     }, nil
 }
 
-//웹 Refresh Token으로 새 Access Token 발급
+
+//웹 Refresh Token으로 새 Access Token 발급 RTR 방식
 func RefreshToken_Handler(w http.ResponseWriter, r *http.Request) {
+    log.Print("RefreshToken_Handler")
 
     var receiveresult structs.RefreshTokenRequest
 
@@ -244,6 +293,26 @@ func RefreshToken_Handler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // 토큰 만료 시간 확인
+    exp, ok := claims["exp"].(float64)
+    if !ok {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    } 
+
+    // log.Print("RefreshToken_Handler : exp = "+ strconv.FormatInt(int64(exp), 10) + ", now = " + strconv.FormatInt(time.Now().Unix(), 10))
+
+    if int64(exp) < time.Now().Unix() {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    }
+
     userEmail := claims["user"].(string)
 
     // DB에 저장된 Refresh Token과 비교 (보안 강화) = 토큰을 탈취 당했을 경우에 db에 저장된 토큰을 지움으로써 무효화 시킬 수 있다.
@@ -272,9 +341,9 @@ func RefreshToken_Handler(w http.ResponseWriter, r *http.Request) {
     w.Write(json)
 }
 
-//어플 Refresh Token으로 새 Access Token 발급
+//어플 Refresh Token으로 새 Access Token 발급 RTR 방식
 func RefreshToken_App_Handler(w http.ResponseWriter, r *http.Request) {
-
+    log.Print("RefreshToken_App_Handler")
     var receiveresult structs.RefreshTokenAppRequest
 
     err := json.NewDecoder(r.Body).Decode(&receiveresult)
@@ -315,6 +384,24 @@ func RefreshToken_App_Handler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // 토큰 만료 시간 확인
+    exp, ok := claims["exp"].(float64)
+    if !ok {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    }
+
+    if int64(exp) < time.Now().Unix() {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    }
+
     userEmail := claims["user"].(string)
 
     // DB에 저장된 Refresh Token과 비교 (보안 강화) = 토큰을 탈취 당했을 경우에 db에 저장된 토큰을 지움으로써 무효화 시킬 수 있다.
@@ -343,9 +430,120 @@ func RefreshToken_App_Handler(w http.ResponseWriter, r *http.Request) {
     w.Write(json)
 }
 
+//관리자 Refresh Token으로 새 Access Token 발급 RTR 방식
+func RefreshToken_Admin_Handler(w http.ResponseWriter, r *http.Request) {
+    log.Print("RefreshToken_Admin_Handler")
+    var receiveresult structs.RefreshTokenAdminRequest
+
+    err := json.NewDecoder(r.Body).Decode(&receiveresult)
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    defer r.Body.Close()
+
+
+    // Refresh Token 검증
+    token, err := jwt.Parse(receiveresult.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, fmt.Errorf("unexpected signing method")
+        }
+        return mySigningKey, nil
+    })
+
+
+    if err != nil || !token.Valid {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid Admin refresh token",
+        })
+        return
+    }
+
+
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok {
+        w.WriteHeader(http.StatusUnauthorized)
+        return
+    }
+
+
+    // 타입 확인
+    if claims["type"] != "refresh" {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid Admin token type",
+        })
+        return
+    }
+
+
+     // 관리자 토큰 확인
+    if claims["role"] != "admin" {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid Admin token type",
+        })
+        return
+    }
+
+
+    // 토큰 만료 시간 확인
+    exp, ok := claims["exp"].(float64)
+    if !ok {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    }
+
+    if int64(exp) < time.Now().Unix() {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Invalid token type",
+        })
+        return
+    }
+
+    userEmail := claims["user"].(string)
+
+    // DB에 저장된 Refresh Token과 비교 (보안 강화) = 토큰을 탈취 당했을 경우에 db에 저장된 토큰을 지움으로써 무효화 시킬 수 있다.
+    if !validateAdminRefreshToken(userEmail, receiveresult.RefreshToken) {
+        w.WriteHeader(http.StatusUnauthorized)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Refresh token not found or expired",
+        })
+        return
+    }
+
+
+    // 새 토큰 페어 생성
+    newTokenPair, err := GenerateTokenPair(userEmail,"admin")
+    if err != nil {
+        w.WriteHeader(http.StatusInternalServerError)
+        return
+    }
+
+    // // 새 Refresh Token을 DB에 저장하고 기존 것 삭제
+    // updateRefreshToken(userEmail, receiveresult.RefreshToken, newTokenPair.Refresh_Token)
+
+
+    json, _ := json.Marshal(&structs.RenewedAccessToken{Success: true, Email: userEmail, TokenPair: *newTokenPair})
+    w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(json)
+}
+
 // Refresh Token DB 관리 함수들
 func saveRefreshTokenHandler(userEmail, refreshToken, login_type string) error {
     saveRefreshToken(userEmail, refreshToken, login_type)
+    return nil
+}
+
+// Refresh Token DB 관리 함수들
+func saveAdminRefreshTokenHandler(userEmail, refreshToken, login_type string) error {
+    saveAdminRefreshToken(userEmail, refreshToken, login_type)
     return nil
 }
 
@@ -356,7 +554,8 @@ func Logout_Handler(w http.ResponseWriter, r *http.Request) {
     //     UserEmail    string `json:"user_email"`
     //     RefreshToken string `json:"refresh_token"`
     // }
-
+    log.Print("Logout_Handler")
+    
     var receiveresult structs.LogoutDataForm
 
     err := json.NewDecoder(r.Body).Decode(&receiveresult)
@@ -367,6 +566,34 @@ func Logout_Handler(w http.ResponseWriter, r *http.Request) {
 
     // DB에서 Refresh Token 삭제
     if err := deleteRefreshToken(receiveresult.Email, receiveresult.Refresh_Token); err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+    
+    json, _ := json.Marshal(&structs.LogoutResult{Success: true})
+    w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(json)
+}
+
+// 로그아웃 - 관리자 Refresh Token 삭제
+func Logout_Admin_Handler(w http.ResponseWriter, r *http.Request) {
+    // var logoutReq struct {
+    //     UserEmail    string `json:"user_email"`
+    //     RefreshToken string `json:"refresh_token"`
+    // }
+    log.Print("Logout_Admin_Handler")
+    
+    var receiveresult structs.LogoutDataForm
+
+    err := json.NewDecoder(r.Body).Decode(&receiveresult)
+    if err != nil {
+        w.WriteHeader(http.StatusBadRequest)
+        return
+    }
+
+    // DB에서 Refresh Token 삭제
+    if err := deleteAdminRefreshToken(receiveresult.Email, receiveresult.Refresh_Token); err != nil {
         w.WriteHeader(http.StatusBadRequest)
         return
     }

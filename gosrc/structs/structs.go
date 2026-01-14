@@ -78,6 +78,10 @@ type RefreshTokenAppRequest struct {	//앱 리프레시 토큰 요청
 	RefreshToken string `json:"refresh_token"`
 }
 
+type RefreshTokenAdminRequest struct {	//어드민 리프레시 토큰 요청
+	RefreshToken string `json:"refresh_token"`
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 //Web
 

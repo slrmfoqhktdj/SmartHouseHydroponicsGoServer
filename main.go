@@ -1281,11 +1281,16 @@ func main() {
 
 	//////////////////////////////////////////////////////////////////////////////////////////////
 
+	// HTTP 라우터 설정
 	mux := mux.NewRouter()
+	// 사용자 인증 미들웨어
+	privateRouter := mux.PathPrefix("/").Subrouter()
+	privateRouter.Use(jwt.JwtMiddleware)
+	// 관리자 인증 미들웨어
+	adminRouter := privateRouter.PathPrefix("/if").Subrouter()
+	adminRouter.Use(jwt.AdminJwtMiddleware)
 
 	//////////////////////////////////////////////////////////////////////////////////////////////
-	//로그인
-	// mux.Path("/").HandlerFunc(adminpage.LoginPage_Handler)
 
 	//웹 고객 로그인
 	mux.Path("/login").HandlerFunc(clientpage.Login_Handler).Methods("POST")
@@ -1295,16 +1300,20 @@ func main() {
 	mux.Path("/if/login").HandlerFunc(adminpage.Login_Handler).Methods("POST")
 	//기기 jwt token 발급 로그인
 	mux.Path("/device/login").HandlerFunc(clientpage.Login_Device_Handler).Methods("POST")
-	//어플 access token 재발급
-	mux.Path("/app/jwt/refresh").HandlerFunc(jwt.RefreshToken_App_Handler).Methods("POST")
+
 	//웹 access token 재발급
 	mux.Path("/jwt/refresh").HandlerFunc(jwt.RefreshToken_Handler).Methods("POST")
+	//어플 access token 재발급
+	mux.Path("/app/jwt/refresh").HandlerFunc(jwt.RefreshToken_App_Handler).Methods("POST")
+	//관리자 access token 재발급
+	mux.Path("/if/jwt/refresh").HandlerFunc(jwt.RefreshToken_Admin_Handler).Methods("POST")
 
-	privateRouter := mux.PathPrefix("/").Subrouter()
-	privateRouter.Use(jwt.JwtMiddleware)
+	/////////////////////////////////////////////////////////////////////////////////////////////
 
-	// mux.Path("/login").HandlerFunc(Command_Handler)
+	// 웹 어플 로그아웃
 	privateRouter.Path("/logout").HandlerFunc(jwt.Logout_Handler).Methods("POST")
+	// 관리자 로그아웃
+	privateRouter.Path("/if/logout").HandlerFunc(jwt.Logout_Admin_Handler).Methods("POST")
 
 	/////////////////////////////////////////////기기/////////////////////////////////////////////////
 
@@ -1347,57 +1356,57 @@ func main() {
 	/////////////////////////////////////////////관리자페이지/////////////////////////////////////////////////
 
 	//대쉬보드
-	privateRouter.Path("/if/dashboardlist").HandlerFunc(IF_Dashboard_Page_Handler).Methods("GET")
+	adminRouter.Path("/dashboardlist").HandlerFunc(IF_Dashboard_Page_Handler).Methods("GET")
 	//하우스 기본 정보
-	privateRouter.Path("/if/devicelist").HandlerFunc(IF_DeviceList_Page_Handler).Methods("GET")
+	adminRouter.Path("/devicelist").HandlerFunc(IF_DeviceList_Page_Handler).Methods("GET")
 	//하우스 예약 정보
-	privateRouter.Path("/if/deviceappointlist").HandlerFunc(IF_DeviceAppointList_Page_Handler).Methods("GET")
+	adminRouter.Path("/deviceappointlist").HandlerFunc(IF_DeviceAppointList_Page_Handler).Methods("GET")
 	//하우스 등록 유저 기기 정보
-	privateRouter.Path("/if/deviceuserlist").HandlerFunc(IF_DeviceUserList_Page_Handler).Methods("GET")
+	adminRouter.Path("/deviceuserlist").HandlerFunc(IF_DeviceUserList_Page_Handler).Methods("GET")
 	//유저 정보
-	privateRouter.Path("/if/userlist").HandlerFunc(IF_UserList_Page_Handler).Methods("GET")
+	adminRouter.Path("/userlist").HandlerFunc(IF_UserList_Page_Handler).Methods("GET")
 	//하우스 업데이트 관리
-	privateRouter.Path("/if/deviceupdatelist").HandlerFunc(IF_Updmng_Page_Handler).Methods("GET")
+	adminRouter.Path("/deviceupdatelist").HandlerFunc(IF_Updmng_Page_Handler).Methods("GET")
 	//진단파일 요청 관리
-	privateRouter.Path("/if/devicelogcmdpage").HandlerFunc(IF_Logmng_Page_Handler).Methods("GET")
+	adminRouter.Path("/devicelogcmdpage").HandlerFunc(IF_Logmng_Page_Handler).Methods("GET")
 	//하우스 일자별 센서값 조회
-	privateRouter.Path("/if/devicedailylist").HandlerFunc(IF_DeviceDailylist_Page_Handler).Methods("GET")
+	adminRouter.Path("/devicedailylist").HandlerFunc(IF_DeviceDailylist_Page_Handler).Methods("GET")
 	//하우스 센서값 그래프 조회
-	privateRouter.Path("/if/devicedailygraph").HandlerFunc(IF_DeviceDailyGraph_Page_Handler).Methods("POST")
+	adminRouter.Path("/devicedailygraph").HandlerFunc(IF_DeviceDailyGraph_Page_Handler).Methods("POST")
 
 	//////////////////////////////////관리자페이지 검색///////////////////////////////////
 
 	//하우스 기본 정보 검색
-	privateRouter.Path("/if/devicelist/search").HandlerFunc(IF_DeviceList_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/devicelist/search").HandlerFunc(IF_DeviceList_Page_Search_Handler).Methods("GET")
 	//하우스 예약 정보 검색
-	privateRouter.Path("/if/deviceappointlist/search").HandlerFunc(DeviceAppointList_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/deviceappointlist/search").HandlerFunc(DeviceAppointList_Page_Search_Handler).Methods("GET")
 	//하우스 등록 유저 기기 정보 검색
-	privateRouter.Path("/if/deviceuserlist/search").HandlerFunc(IF_DeviceUserList_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/deviceuserlist/search").HandlerFunc(IF_DeviceUserList_Page_Search_Handler).Methods("GET")
 	//유저 정보 검색
-	privateRouter.Path("/if/userlist/search").HandlerFunc(IF_UserList_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/userlist/search").HandlerFunc(IF_UserList_Page_Search_Handler).Methods("GET")
 	//하우스 업데이트 관리 검색
-	privateRouter.Path("/if/deviceupdatelist/search").HandlerFunc(IF_Updmng_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/deviceupdatelist/search").HandlerFunc(IF_Updmng_Page_Search_Handler).Methods("GET")
 	//진단파일 요청 관리 검색
-	privateRouter.Path("/if/devicelogcmdpage/search").HandlerFunc(IF_Logmng_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/devicelogcmdpage/search").HandlerFunc(IF_Logmng_Page_Search_Handler).Methods("GET")
 	//하우스 일자별 센서값 검색
-	privateRouter.Path("/if/devicedailylist/search").HandlerFunc(IF_DeviceDailylist_Page_Search_Handler).Methods("GET")
+	adminRouter.Path("/devicedailylist/search").HandlerFunc(IF_DeviceDailylist_Page_Search_Handler).Methods("GET")
 
 	//////////////////////////////////관리자페이지 수정 및 삽입///////////////////////////////////
 
 	//하우스 등록 유저 기기 정보 삽입
-	privateRouter.Path("/if/deviceuser/register").HandlerFunc(IF_DeviceUser_Register_Handler).Methods("POST")
+	adminRouter.Path("/deviceuser/register").HandlerFunc(IF_DeviceUser_Register_Handler).Methods("POST")
 	//하우스 등록 유저 기기 정보 삭제
-	privateRouter.Path("/if/deviceuser/deleter").HandlerFunc(IF_DeviceUser_Deleter_Handler).Methods("POST")
+	adminRouter.Path("/deviceuser/deleter").HandlerFunc(IF_DeviceUser_Deleter_Handler).Methods("POST")
 	//유저 정보 삽입
-	privateRouter.Path("/if/user/register").HandlerFunc(IF_User_Register_Handler).Methods("POST")
+	adminRouter.Path("/user/register").HandlerFunc(IF_User_Register_Handler).Methods("POST")
 	//유저 정보 삭제
-	privateRouter.Path("/if/user/deleter").HandlerFunc(IF_User_Deleter_Handler).Methods("POST")
+	adminRouter.Path("/user/deleter").HandlerFunc(IF_User_Deleter_Handler).Methods("POST")
 	//유저 정보 업데이트
-	privateRouter.Path("/if/user/updater").HandlerFunc(IF_User_Updater_Handler).Methods("POST")
+	adminRouter.Path("/user/updater").HandlerFunc(IF_User_Updater_Handler).Methods("POST")
 	//유저 알람 전송
-	privateRouter.Path("/if/user/alert").HandlerFunc(IF_User_Alert_Handler).Methods("POST")
+	adminRouter.Path("/user/alert").HandlerFunc(IF_User_Alert_Handler).Methods("POST")
 	//유저 전체 알람 전송
-	privateRouter.Path("/if/user/alert/whole").HandlerFunc(IF_User_Whole_Alert_Handler).Methods("POST")
+	adminRouter.Path("/user/alert/whole").HandlerFunc(IF_User_Whole_Alert_Handler).Methods("POST")
 
 	//////////////////////////////////관리자페이지 명령///////////////////////////////////
 

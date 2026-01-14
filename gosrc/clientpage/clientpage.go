@@ -94,9 +94,7 @@ func UserAlarmList_Handler(w http.ResponseWriter, r *http.Request) {
 
 	rb := clientpagedbconn.UserAlarmList_select(r.URL.Query().Get("user"))
 
-	log.Printf("UserAlarmList_Handler %v", rb)
 	json, _ := json.Marshal(&structs.UserAlarmListConf{User: r.URL.Query().Get("user"), Items: rb})
-	log.Printf("UserAlarmList_Handler")
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(json)
