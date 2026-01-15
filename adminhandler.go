@@ -338,6 +338,26 @@ func IF_User_Updater_Handler(w http.ResponseWriter, r *http.Request) {
 	w.Write(json)
 }
 
+// 유저 로그아웃 명령
+func IF_User_Logouter_Handler(w http.ResponseWriter, r *http.Request) {
+
+	log.Print("IF_User_Logouter_Handler")
+
+	msg := adminpage.UserLogoutItem{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&msg)
+	if err != nil {
+		log.Printf("IF_User_Logouter_Handler err : %s", err)
+		return
+	}
+	defer r.Body.Close()
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json, _ := json.Marshal(&adminpage.UserConf{Item: adminpage.Logout_user(msg.Email, msg.Type)})
+	w.Write(json)
+}
+
 // 유저 알람 전송
 func IF_User_Alert_Handler(w http.ResponseWriter, r *http.Request) {
 

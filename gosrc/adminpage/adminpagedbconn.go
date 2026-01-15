@@ -974,6 +974,38 @@ func Update_user(Email, Name, pwd string) bool {
 	return true
 }
 
+// 유저 로그아웃 명령
+func Logout_user(Email, Type string) bool {
+
+	conn, err := db.OpenDB()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	if Type == "all" {
+		rows, err := conn.Exec("DELETE FROM refresh_tokens_user WHERE email =?", Email)
+		if err != nil {
+			fmt.Printf("rows1 : %s", err)
+			return false
+		}
+
+		log.Printf("logout_user : %v ", rows)
+	}else{
+		rows, err := conn.Exec("DELETE FROM refresh_tokens_user WHERE email =? AND login_type =?", Email, Type)
+		if err != nil {
+			fmt.Printf("rows1 : %s", err)
+			return false
+		}
+
+		log.Printf("logout_user : %v ", rows)
+	}
+
+	defer conn.Close()
+
+	return true
+}
+
 // 유저 메시지 id 반환
 func User_AlertId_select(user string) string {
 	var result string

@@ -1403,6 +1403,8 @@ func main() {
 	adminRouter.Path("/user/deleter").HandlerFunc(IF_User_Deleter_Handler).Methods("POST")
 	//유저 정보 업데이트
 	adminRouter.Path("/user/updater").HandlerFunc(IF_User_Updater_Handler).Methods("POST")
+	//유저 로그아웃
+	adminRouter.Path("/user/logouter").HandlerFunc(IF_User_Logouter_Handler).Methods("POST")
 	//유저 알람 전송
 	adminRouter.Path("/user/alert").HandlerFunc(IF_User_Alert_Handler).Methods("POST")
 	//유저 전체 알람 전송

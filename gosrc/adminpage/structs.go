@@ -49,6 +49,11 @@ type UserInsertItem struct {
 	Password string `json:"password"`
 }
 
+type UserLogoutItem struct {
+	Email    string `json:"email"`
+	Type     string `json:"type"`
+}
+
 type UserAlertMessage struct {
 	User    string `json:"user"`
 	Title   string `json:"title"`
